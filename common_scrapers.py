@@ -20,6 +20,83 @@ class GreenhousePage:
             )
         return jobs
 
+class HiringCafeSite:
+    @staticmethod
+    def get_jobs(driver, config=None):
+        job_elements = driver.find_elements(By.CLASS_NAME, 'relative.xl\\:z-10')
+        jobs = []
+        original_window = driver.current_window_handle
+
+        for job in job_elements:
+            try:
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", job)
+                time.sleep(1)
+                ActionChains(driver).move_to_element(job).click().perform()
+                time.sleep(0.5)
+
+                portal_divs = driver.find_elements(By.CLASS_NAME, 'chakra-portal')
+                if not portal_divs:
+                    continue
+                portal = portal_divs[-1]
+
+                buttons = portal.find_elements(By.TAG_NAME, 'button')
+                apply_button = None
+                for btn in buttons:
+                    try:
+                        divs = btn.find_elements(By.TAG_NAME, 'div')
+                        for div in divs:
+                            spans = div.find_elements(By.TAG_NAME, 'span')
+                            for span in spans:
+                                if span.text.strip() == 'Apply now':
+                                    apply_button = btn
+                                    break
+                            if apply_button:
+                                break
+                        if apply_button:
+                            break
+                    except Exception as e:
+                        continue
+                if not apply_button:
+                    print("cannot find Apply button in job popup")
+                    continue
+                apply_button.click()
+                time.sleep(0.5)
+                try:
+                    title_el = portal.find_element(By.TAG_NAME, 'h2')
+                    job_title = title_el.text
+                except Exception:
+                    print("Unable to get the job title from the portal, using job")
+                    job_title = job.find_element(By.TAG_NAME, 'span').text
+
+                windows = driver.window_handles
+                new_window = [w for w in windows if w != original_window][0]
+                driver.switch_to.window(new_window)
+                link_url = driver.current_url
+
+                jobs.append(
+                    JobPosting(
+                        title=job_title,
+                        id=link_url,
+                        link=link_url,
+                    )
+                )
+
+                driver.close()
+                driver.switch_to.window(original_window)
+            except Exception as e:
+                print(f"Error processing job: {e}")
+                driver.switch_to.window(original_window)
+            try:
+                header = portal.find_element(By.TAG_NAME, 'header')
+                close_buttons = header.find_elements(By.TAG_NAME, 'button')
+                if close_buttons:
+                    close_buttons[-1].click()
+                    time.sleep(0.2)
+            except Exception as e:
+                print("Could not close the chakra_portal popup, this might break the script:", e)
+            time.sleep(0.2)
+        return jobs
+
 class GreenhouseEmbeddedStandalonePage:
     @staticmethod
     def get_jobs(driver, config=None):
